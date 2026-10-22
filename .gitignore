@@ -1,0 +1,15 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+.virtual_documents/
+.jupyter/
+
+# Virtual environments and local secrets
+.venv/
+venv/
+env/
+.env
