@@ -35,6 +35,55 @@ def test_sustained_high_baseline_is_not_a_spike():
     assert detect_spikes([8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9, 8, 9]) == []
 
 
+# Regression tests for the curfew-zero baseline: the app is unavailable outside
+# 07:00-22:00, so hours 0-6 and 22-23 are always 0. Without a local window, the
+# day's highest hour was measured against those zeros and always became a spike.
+CURFEW_START = [0] * 7   # 00:00-06:59
+CURFEW_END = [0] * 2     # 22:00-23:59
+
+
+def test_flat_busy_day_with_curfew_zeros_has_no_spikes():
+    # 12 flags every active hour: busy, but nothing stands out
+    counts = CURFEW_START + [12] * 15 + CURFEW_END
+    assert detect_spikes(counts) == []
+
+
+def test_steadily_noisy_day_with_curfew_zeros_has_no_spikes():
+    # Local maxima of 14-15 above a 12-13 baseline: noise, not bursts
+    counts = CURFEW_START + [12, 14, 12, 15, 13, 12, 14, 13, 12, 15, 12, 13, 14, 12, 13] + CURFEW_END
+    assert detect_spikes(counts) == []
+
+
+def test_real_burst_on_a_noisy_day_is_still_detected():
+    # One hour of 30 on an otherwise steady 12-14 day
+    counts = CURFEW_START + [12, 13, 12, 14, 13, 30, 13, 12, 14, 12, 13, 12, 14, 12, 13] + CURFEW_END
+    assert detect_spikes(counts) == ["12:00"]
+
+
+def test_multi_hour_burst_is_detected_once():
+    # A burst lasting three hours is one event, reported at its first peak hour
+    counts = CURFEW_START + [1, 2, 1, 15, 15, 14, 2, 1, 0, 1, 0, 0, 1, 0, 0] + CURFEW_END
+    assert detect_spikes(counts) == ["10:00"]
+
+
+def test_steady_noise_next_to_curfew_is_not_a_spike():
+    # A local high in the first active hours must not be measured against the curfew zeros
+    counts = CURFEW_START + [12, 15, 12, 13, 12, 13, 12, 13, 12, 13, 12, 13, 12, 13, 12] + CURFEW_END
+    assert detect_spikes(counts) == []
+
+
+def test_burst_at_opening_hour_is_detected():
+    # A burst in the first active hour, next to the curfew zeros
+    counts = CURFEW_START + [25, 3, 2, 1] + [0] * 11 + CURFEW_END
+    assert detect_spikes(counts) == ["07:00"]
+
+
+def test_window_can_be_overridden():
+    # Without a local window (whole day), the flat busy day is wrongly reported
+    counts = CURFEW_START + [12] * 15 + CURFEW_END
+    assert detect_spikes(counts, window_hours=None) == ["14:00"]
+
+
 def test_multiple_spikes_are_returned_in_hour_order():
     counts = [0] * 24
     counts[9] = 15
